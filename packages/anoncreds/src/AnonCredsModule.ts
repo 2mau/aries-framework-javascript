@@ -19,7 +19,7 @@ import { AnonCredsSchemaRepository } from './repository/AnonCredsSchemaRepositor
 import { AnonCredsHolderServiceSymbol, AnonCredsIssuerServiceSymbol, AnonCredsVerifierServiceSymbol } from './services'
 import { AnonCredsRegistryService } from './services/registry/AnonCredsRegistryService'
 import { updateAnonCredsModuleV0_3_1ToV0_4 } from './updates/0.3.1-0.4'
-import { updateAnonCredsModuleV0_4ToV0_5 } from './updates/0.4-0.5'
+import { partialUpdatesForV0_5ToV0_6 } from './updates/0.5-0.6'
 
 /**
  * @public
@@ -62,9 +62,10 @@ export class AnonCredsModule implements Module {
       doUpdate: updateAnonCredsModuleV0_3_1ToV0_4,
     },
     {
-      fromVersion: '0.4',
-      toVersion: '0.5',
-      doUpdate: updateAnonCredsModuleV0_4ToV0_5,
+      fromVersion: '0.5',
+      toVersion: '0.6',
+      doUpdate: partialUpdatesForV0_5ToV0_6,
+      type: 'partiallyApplicable',
     },
   ] satisfies Update[]
 }

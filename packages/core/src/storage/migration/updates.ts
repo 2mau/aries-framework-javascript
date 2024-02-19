@@ -10,11 +10,21 @@ import { updateV0_4ToV0_5 } from './updates/0.4-0.5'
 
 export const INITIAL_STORAGE_VERSION = '0.1'
 
-export interface Update {
+export interface PartiallyApplicableUpdate {
+  fromVersion: VersionString
+  toVersion: VersionString
+  doUpdate: <Agent extends BaseAgent>(agent: Agent, updateConfig: UpdateConfig) => Promise<boolean>
+  type: 'partiallyApplicable'
+}
+
+export interface StandardUpdate {
   fromVersion: VersionString
   toVersion: VersionString
   doUpdate: <Agent extends BaseAgent>(agent: Agent, updateConfig: UpdateConfig) => Promise<void>
+  type?: never
 }
+
+export type Update = PartiallyApplicableUpdate | StandardUpdate
 
 export interface UpdateConfig {
   v0_1ToV0_2: V0_1ToV0_2UpdateConfig

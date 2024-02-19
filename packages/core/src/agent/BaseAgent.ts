@@ -158,12 +158,7 @@ export abstract class BaseAgent<AgentModules extends ModulesMap = EmptyModuleMap
     const isStorageUpToDate = await storageUpdateService.isUpToDate(this.agentContext)
     this.logger.info(`Agent storage is ${isStorageUpToDate ? '' : 'not '}up to date.`)
 
-    if (!isStorageUpToDate && this.agentConfig.autoUpdateStorageOnStartup) {
-      const updateAssistant = new UpdateAssistant(this)
-
-      await updateAssistant.initialize()
-      await updateAssistant.update({ backupBeforeStorageUpdate: this.agentConfig.backupBeforeStorageUpdate })
-    } else if (!isStorageUpToDate) {
+    if (!isStorageUpToDate && !this.agentConfig.autoUpdateStorageOnStartup) {
       const currentVersion = await storageUpdateService.getCurrentStorageVersion(this.agentContext)
       // Close wallet to prevent un-initialized agent with initialized wallet
       await this.wallet.close()
@@ -174,6 +169,18 @@ export abstract class BaseAgent<AgentModules extends ModulesMap = EmptyModuleMap
           `Make sure to update the agent storage (currently at ${currentVersion}) to the latest version (${UpdateAssistant.frameworkStorageVersion}). ` +
           `You can also downgrade your version of Credo.`
       )
+    }
+
+    if (this.agentConfig.autoUpdateStorageOnStartup) {
+      const updateAssistant = new UpdateAssistant(this)
+      await updateAssistant.initialize()
+
+      if (!isStorageUpToDate) {
+        await updateAssistant.update({ backupBeforeStorageUpdate: this.agentConfig.backupBeforeStorageUpdate })
+      }
+
+      // run updates which are partially applicable after the update
+      await updateAssistant.runPartiallyApplicableUpdates()
     }
   }
 

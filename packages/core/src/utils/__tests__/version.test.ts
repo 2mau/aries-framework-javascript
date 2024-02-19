@@ -1,4 +1,9 @@
-import { isFirstVersionEqualToSecond, isFirstVersionHigherThanSecond, parseVersionString } from '../version'
+import {
+  isFirstVersionBetween,
+  isFirstVersionEqualToSecond,
+  isFirstVersionHigherThanSecond,
+  parseVersionString,
+} from '../version'
 
 describe('version', () => {
   describe('parseVersionString()', () => {
@@ -77,6 +82,19 @@ describe('version', () => {
     it('returns false if the patch version digit of both versions are different', () => {
       expect(isFirstVersionEqualToSecond([1, 0, 1], [1, 0, 0])).toBe(false)
       expect(isFirstVersionEqualToSecond([2, 10, 0], [2, 10, 4])).toBe(false)
+    })
+
+    it('returns true if the first version is between the second and third', () => {
+      expect(isFirstVersionBetween([1, 0, 1], [1, 0, 0], [2, 0, 0])).toBe(true)
+      expect(isFirstVersionBetween([2, 10, 4], [2, 10, 4], [2, 10, 5])).toBe(true)
+      expect(isFirstVersionBetween([2, 10, 0], [2, 10, 0], [2, 10, 5])).toBe(true)
+    })
+
+    it('returns true if the first version is not between the second and third (excluding the upper bound)', () => {
+      expect(isFirstVersionBetween([1, 0, 0], [1, 0, 1], [2, 0, 0])).toBe(false)
+      expect(isFirstVersionBetween([2, 10, 6], [2, 10, 4], [2, 10, 5])).toBe(false)
+      expect(isFirstVersionBetween([2, 10, 5], [2, 10, 4], [2, 10, 5])).toBe(false)
+      expect(isFirstVersionBetween([2, 10, 0], [2, 10, 0], [2, 10, 0])).toBe(false)
     })
   })
 })

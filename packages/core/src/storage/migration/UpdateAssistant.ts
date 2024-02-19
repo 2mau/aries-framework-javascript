@@ -1,17 +1,29 @@
 import type { Update, UpdateConfig, UpdateToVersion } from './updates'
 import type { BaseAgent } from '../../agent/BaseAgent'
 import type { Module } from '../../plugins'
+import type { Version } from '../../utils/version'
 import type { FileSystem } from '../FileSystem'
 
 import { InjectionSymbols } from '../../constants'
 import { CredoError } from '../../error'
-import { isFirstVersionEqualToSecond, isFirstVersionHigherThanSecond, parseVersionString } from '../../utils/version'
+import {
+  isFirstVersionEqualToSecond,
+  isFirstVersionHigherThanSecond,
+  parseVersionString,
+  isFirstVersionBetween,
+  isFirstVersionHigherOrEqualToSecond,
+} from '../../utils/version'
 import { WalletExportPathExistsError, WalletExportUnsupportedError } from '../../wallet/error'
 import { WalletError } from '../../wallet/error/WalletError'
 
 import { StorageUpdateService } from './StorageUpdateService'
 import { StorageUpdateError } from './error/StorageUpdateError'
 import { DEFAULT_UPDATE_CONFIG, CURRENT_FRAMEWORK_STORAGE_VERSION, supportedUpdates } from './updates'
+
+export interface UpdateAssistantPartialUpdateOptions {
+  backupBeforeStorageUpdate?: boolean
+  requireCompletionTo?: Version
+}
 
 export interface UpdateAssistantUpdateOptions {
   updateToVersion?: UpdateToVersion
@@ -164,7 +176,10 @@ export class UpdateAssistant<Agent extends BaseAgent<any> = BaseAgent> {
           // Filter modules that have an update script for the current update
           for (const registeredModule of registeredModules) {
             const moduleUpdate = registeredModule.updates?.find(
-              (module) => module.fromVersion === update.fromVersion && module.toVersion === update.toVersion
+              (module) =>
+                module.fromVersion === update.fromVersion &&
+                module.toVersion === update.toVersion &&
+                module.type !== 'partiallyApplicable'
             )
 
             if (moduleUpdate) {
@@ -178,6 +193,12 @@ export class UpdateAssistant<Agent extends BaseAgent<any> = BaseAgent> {
           this.agent.config.logger.info(
             `Starting update of agent storage from version ${update.fromVersion} to version ${update.toVersion}. Found ${modulesWithUpdate.length} extension module(s) with update scripts`
           )
+
+          await this.runPartiallyApplicableUpdates({
+            backupBeforeStorageUpdate: false,
+            requireCompletionTo: parseVersionString(update.toVersion),
+          })
+
           await update.doUpdate(this.agent, this.updateConfig)
 
           this.agent.config.logger.info(
@@ -200,6 +221,144 @@ export class UpdateAssistant<Agent extends BaseAgent<any> = BaseAgent> {
             `Successfully updated agent storage from version ${update.fromVersion} to version ${update.toVersion}`
           )
         }
+        if (createBackup) {
+          // Delete backup file, as it is not needed anymore
+          await this.fileSystem.delete(this.getBackupPath(updateIdentifier))
+        }
+      } catch (error) {
+        this.agent.config.logger.fatal('An error occurred while updating the wallet.', {
+          error,
+        })
+
+        if (createBackup) {
+          this.agent.config.logger.debug('Restoring backup.')
+          // In the case of an error we want to restore the backup
+          await this.restoreBackup(updateIdentifier)
+
+          // Delete backup file, as wallet was already restored (backup-error file will persist though)
+          await this.fileSystem.delete(this.getBackupPath(updateIdentifier))
+        }
+
+        throw error
+      }
+    } catch (error) {
+      // Backup already exists at path
+      if (error instanceof WalletExportPathExistsError) {
+        const backupPath = this.getBackupPath(updateIdentifier)
+        const errorMessage = `Error updating storage with updateIdentifier ${updateIdentifier} because the backup at path ${backupPath} already exists`
+        this.agent.config.logger.fatal(errorMessage, {
+          error,
+          updateIdentifier,
+          backupPath,
+        })
+        throw new StorageUpdateError(errorMessage, { cause: error })
+      }
+      // Wallet backend does not support export
+      if (error instanceof WalletExportUnsupportedError) {
+        const errorMessage = `Error updating storage with updateIdentifier ${updateIdentifier} because the wallet backend does not support exporting.
+         Make sure to do a manual backup of your wallet and disable 'backupBeforeStorageUpdate' before proceeding.`
+        this.agent.config.logger.fatal(errorMessage, {
+          error,
+          updateIdentifier,
+        })
+        throw new StorageUpdateError(errorMessage, { cause: error })
+      }
+
+      this.agent.config.logger.error(`Error updating storage (updateIdentifier: ${updateIdentifier})`, {
+        cause: error,
+      })
+
+      throw new StorageUpdateError(`Error updating storage (updateIdentifier: ${updateIdentifier}): ${error.message}`, {
+        cause: error,
+      })
+    }
+
+    return updateIdentifier
+  }
+
+  public async runPartiallyApplicableUpdates(options?: UpdateAssistantPartialUpdateOptions) {
+    const updateIdentifier = Date.now().toString()
+
+    try {
+      this.agent.config.logger.info(
+        `Running background updates of agent storage with updateIdentifier ${updateIdentifier}`
+      )
+
+      const currentStorageVersion = parseVersionString(
+        await this.storageUpdateService.getCurrentStorageVersion(this.agent.context)
+      )
+
+      // Create backup in case migration goes wrong
+      // By default do a backup first (should be explicitly disabled in case the wallet backend does not support export)
+      const createBackup = options?.backupBeforeStorageUpdate ?? true
+      if (createBackup) await this.createBackup(updateIdentifier)
+
+      try {
+        for (const update of supportedUpdates as unknown as Update[]) {
+          const updateToVersion = parseVersionString(update.fromVersion)
+          const updateFromVersion = parseVersionString(update.toVersion)
+
+          if (
+            update.type !== 'partiallyApplicable' ||
+            !isFirstVersionBetween(currentStorageVersion, updateFromVersion, updateToVersion)
+          ) {
+            continue
+          }
+
+          this.agent.config.logger.info(
+            `Running partially applicable update from version ${update.fromVersion} to version ${update.toVersion}`
+          )
+
+          const updateCompleted = await update.doUpdate(this.agent, this.updateConfig)
+
+          if (
+            !updateCompleted &&
+            options?.requireCompletionTo &&
+            !isFirstVersionHigherThanSecond(updateToVersion, options.requireCompletionTo)
+          ) {
+            throw new StorageUpdateError(
+              `Required partially applicable update of extension module ${module.constructor.name} applicable from version ${update.fromVersion} to ${update.toVersion} for module ${module.constructor.name} was not completed.`
+            )
+          }
+          this.agent.config.logger.info(
+            `Completed partially applicable update of extension module ${module.constructor.name} from version ${update.fromVersion} to version ${update.toVersion}`
+          )
+        }
+
+        // Filter modules updates that have partially applicable update script's
+        const registeredModules = Object.values(this.agent.dependencyManager.registeredModules)
+        for (const module of registeredModules) {
+          for (const update of module.updates ?? []) {
+            const updateFromVersion = parseVersionString(update.fromVersion)
+            const updateToVersion = parseVersionString(update.toVersion)
+
+            if (
+              update.type !== 'partiallyApplicable' ||
+              !isFirstVersionBetween(currentStorageVersion, updateFromVersion, updateToVersion)
+            ) {
+              continue
+            }
+
+            this.agent.config.logger.info(
+              `Running partially applicable update of extension module ${module.constructor.name} applicable from version ${update.fromVersion} to version ${update.toVersion}`
+            )
+            const updateCompleted = await update.doUpdate(this.agent, this.updateConfig)
+
+            if (
+              !updateCompleted &&
+              options?.requireCompletionTo &&
+              !isFirstVersionHigherThanSecond(updateToVersion, options.requireCompletionTo)
+            ) {
+              throw new StorageUpdateError(
+                `Required partially applicable update of extension module ${module.constructor.name} applicable from version ${update.fromVersion} to ${update.toVersion} for module ${module.constructor.name} was not completed.`
+              )
+            }
+            this.agent.config.logger.info(
+              `Completed partially applicable update of extension module ${module.constructor.name} from version ${update.fromVersion} to version ${update.toVersion}`
+            )
+          }
+        }
+
         if (createBackup) {
           // Delete backup file, as it is not needed anymore
           await this.fileSystem.delete(this.getBackupPath(updateIdentifier))

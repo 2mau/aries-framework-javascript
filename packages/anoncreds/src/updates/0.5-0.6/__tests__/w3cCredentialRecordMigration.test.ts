@@ -26,7 +26,7 @@ import * as testModule from '../anonCredsCredentialRecord'
 
 import { anoncreds } from './../../../../tests/helpers'
 
-const agentConfig = getAgentConfig('Migration AnonCreds Credential Records 0.4-0.5')
+const agentConfig = getAgentConfig('Migration AnonCreds Credential Records 0.5-0.6')
 const registry = new InMemoryAnonCredsRegistry()
 const anonCredsModuleConfig = new AnonCredsModuleConfig({
   anoncreds,
@@ -103,7 +103,7 @@ jest.mock('../../../../../core/src/agent/Agent', () => {
 // Mock typed object
 const AgentMock = Agent as jest.Mock<Agent>
 
-describe('0.4-0.5 | AnonCredsRecord', () => {
+describe('0.5-0.6 | AnonCredsRecord', () => {
   let agent: Agent
 
   describe('migrateW3cCredentialRecordToV0_5()', () => {

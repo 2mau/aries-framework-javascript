@@ -128,7 +128,7 @@ async function migrateLegacyToW3cCredential(agentContext: AgentContext, legacyRe
 /**
  * Stores all anoncreds credentials in the new w3c format
  */
-export async function storeAnonCredsInW3cFormatV0_5<Agent extends BaseAgent>(agent: Agent) {
+export async function storeAnonCredsInW3cFormatV0_5<Agent extends BaseAgent>(agent: Agent): Promise<boolean> {
   agent.config.logger.info('Migration of legacy AnonCreds records to the new W3C format version 0.5')
 
   const anoncredsRepository = agent.dependencyManager.resolve(AnonCredsCredentialRepository)
@@ -154,4 +154,5 @@ export async function storeAnonCredsInW3cFormatV0_5<Agent extends BaseAgent>(age
 
     agent.config.logger.debug(`Successfully migrated w3c credential record with id ${record.id} to storage version 0.5`)
   }
+  return (await anoncredsRepository.getAll(agent.context)).length === 0
 }
