@@ -89,18 +89,18 @@ const agentContext = getAgentContext({
 const anoncredsCredentialFormatService = new AnonCredsCredentialFormatService()
 const anoncredsProofFormatService = new AnonCredsProofFormatService()
 
-const indyDid = 'did:indy:local:LjgpST2rjsoxYegQDRm7EL'
-
 describe('AnonCreds format services using anoncreds-rs', () => {
   afterEach(() => {
     inMemoryStorageService.contextCorrelationIdToRecords = {}
   })
 
   test('issuance and verification flow starting from proposal without negotiation and without revocation', async () => {
+    const indyDid = 'did:indy:local:LjgpST2rjsoxYegQDRm7EL'
     await anonCredsFlowTest({ issuerId: indyDid, revocable: false })
   })
 
   test('issuance and verification flow starting from proposal without negotiation and with revocation', async () => {
+    const indyDid = 'did:indy:local:LjgpST2rjsoxYegQDRm7EL'
     await anonCredsFlowTest({ issuerId: indyDid, revocable: true })
   })
 })
@@ -135,7 +135,7 @@ async function anonCredsFlowTest(options: { issuerId: string; revocable: boolean
 
   const { credentialDefinition, credentialDefinitionPrivate, keyCorrectnessProof } =
     await anonCredsIssuerService.createCredentialDefinition(agentContext, {
-      issuerId: indyDid,
+      issuerId,
       schemaId: schemaState.schemaId as string,
       schema,
       tag: 'Employee Credential',
@@ -184,7 +184,7 @@ async function anonCredsFlowTest(options: { issuerId: string; revocable: boolean
   if (revocable) {
     const { revocationRegistryDefinition, revocationRegistryDefinitionPrivate } =
       await anonCredsIssuerService.createRevocationRegistryDefinition(agentContext, {
-        issuerId: indyDid,
+        issuerId,
         credentialDefinition,
         credentialDefinitionId: credentialDefinitionState.credentialDefinitionId,
         maximumCredentialNumber: 100,
@@ -229,7 +229,7 @@ async function anonCredsFlowTest(options: { issuerId: string; revocable: boolean
     )
 
     const createdRevocationStatusList = await anonCredsIssuerService.createRevocationStatusList(agentContext, {
-      issuerId: indyDid,
+      issuerId,
       revocationRegistryDefinition,
       revocationRegistryDefinitionId,
       tailsFilePath: localTailsFilePath,

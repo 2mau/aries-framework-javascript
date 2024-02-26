@@ -163,14 +163,35 @@ describe('0.4-0.5 | AnonCredsRecord', () => {
     })
 
     it('credential with cached unqualified did:sov identifiers', async () => {
-      inMemoryLruCache.get.mockReturnValueOnce(null).mockReturnValueOnce({ indyNamespace: 'sov' })
+      inMemoryLruCache.get.mockReturnValueOnce(null).mockReturnValueOnce({ indyNamespace: 'sovrin' })
 
       await testMigration(agent, {
         issuerId: 'SDqTzbVuCowusqGBNbNDjH',
         schemaIssuerId: 'SDqTzbVuCowusqGBNbNDjG',
         schemaId: 'SDqTzbVuCowusqGBNbNDjG:2:Employee Credential:1.0.0',
-        indyNamespace: 'sov',
-        shouldBeInCache: 'sov',
+        indyNamespace: 'sovrin',
+        shouldBeInCache: 'sovrin',
+      })
+    })
+
+    it('credential with cached qualified did:sov identifiers', async () => {
+      inMemoryLruCache.get.mockReturnValueOnce(null).mockReturnValueOnce({ indyNamespace: 'sovrin' })
+
+      await testMigration(agent, {
+        issuerId: 'did:sov:SDqTzbVuCowusqGBNbNDjH',
+        schemaIssuerId: 'did:sov:SDqTzbVuCowusqGBNbNDjG',
+        schemaId: 'did:sov:SDqTzbVuCowusqGBNbNDjG:2:Employee Credential:1.0.0',
+        indyNamespace: 'sovrin',
+        shouldBeInCache: 'sovrin',
+      })
+    })
+
+    it('credential with qualified did:sov identifiers', async () => {
+      await testMigration(agent, {
+        issuerId: 'did:sov:SDqTzbVuCowusqGBNbNDjH',
+        schemaIssuerId: 'did:sov:SDqTzbVuCowusqGBNbNDjG',
+        schemaId: 'did:sov:SDqTzbVuCowusqGBNbNDjG:2:Employee Credential:1.0.0',
+        indyNamespace: 'sovrin',
       })
     })
   })
@@ -183,7 +204,7 @@ async function testMigration(
     schemaIssuerId: string
     schemaId: string
     indyNamespace?: string
-    shouldBeInCache?: 'indy' | 'sov'
+    shouldBeInCache?: 'indy' | 'sovrin'
   }
 ) {
   const { issuerId, schemaIssuerId, schemaId, indyNamespace } = options
@@ -265,11 +286,11 @@ async function testMigration(
   const unqualifiedDidIndyDid = isUnqualifiedIndyDid(issuerId)
   if (unqualifiedDidIndyDid) {
     expect(inMemoryLruCache.get).toHaveBeenCalledTimes(
-      options.shouldBeInCache === 'sov' || !options.shouldBeInCache ? 2 : 1
+      options.shouldBeInCache === 'sovrin' || !options.shouldBeInCache ? 2 : 1
     )
     expect(inMemoryLruCache.get).toHaveBeenCalledWith(
       agent.context,
-      options.shouldBeInCache === 'sov' || !options.shouldBeInCache
+      options.shouldBeInCache === 'sovrin' || !options.shouldBeInCache
         ? 'IndySdkPoolService:' + issuerId
         : 'IndyVdrPoolService:' + issuerId
     )

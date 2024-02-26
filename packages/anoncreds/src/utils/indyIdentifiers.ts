@@ -221,6 +221,20 @@ export function getIndyNamespaceFromIndyDid(identifier: string): string {
 }
 
 export function getUnQualifiedDidIndyDid(identifier: string): string {
+  if (isSovDid(identifier)) {
+    const unqualifiedSovIdentifier = identifier.split('did:sov:')[1]
+    return unqualifiedSovIdentifier
+  }
+
+  if (
+    isUnqualifiedIndyDid(identifier) ||
+    isUnqualifiedSchemaId(identifier) ||
+    isUnqualifiedCredentialDefinitionId(identifier) ||
+    isUnqualifiedRevocationRegistryId(identifier)
+  ) {
+    return identifier
+  }
+
   if (isDidIndySchemaId(identifier)) {
     const { schemaName, schemaVersion, namespaceIdentifier } = parseIndySchemaId(identifier)
     return getUnqualifiedSchemaId(namespaceIdentifier, schemaName, schemaVersion)
@@ -246,8 +260,17 @@ export function isIndyDid(identifier: string): boolean {
   return identifier.startsWith('did:indy:')
 }
 
+export function isSovDid(identifier: string): boolean {
+  return identifier.startsWith('did:sov:')
+}
+
 export function getQualifiedDidIndyDid(identifier: string, namespace: string) {
   if (isIndyDid(identifier)) return identifier
+
+  if (isSovDid(identifier)) {
+    const unqualifiedSovIdentifier = identifier.split('did:sov:')[1]
+    return getQualifiedDidIndyDid(unqualifiedSovIdentifier, 'sovrin')
+  }
 
   if (!namespace || typeof namespace !== 'string') {
     throw new CredoError('Missing required indy namespace')
@@ -268,7 +291,7 @@ export function getQualifiedDidIndyDid(identifier: string, namespace: string) {
   } else if (isUnqualifiedIndyDid(identifier)) {
     return `did:indy:${namespace}:${identifier}`
   } else {
-    throw new CredoError(`Cannot created qualified indy identifier for '${identifier}' with namespace '${namespace}'`)
+    throw new CredoError(`Cannot create qualified indy identifier for '${identifier}' with namespace '${namespace}'`)
   }
 }
 

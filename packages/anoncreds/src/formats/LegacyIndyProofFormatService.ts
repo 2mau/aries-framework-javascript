@@ -53,13 +53,7 @@ import {
   fetchRevocationStatusList,
 } from '../utils'
 import { encodeCredentialValue } from '../utils/credential'
-import {
-  getUnQualifiedDidIndyDid,
-  isUnqualifiedCredentialDefinitionId,
-  isUnqualifiedSchemaId,
-  getUnqualifiedDidIndySchema,
-  getUnqualifiedDidIndyCredentialDefinition,
-} from '../utils/indyIdentifiers'
+import { getUnQualifiedDidIndyDid } from '../utils/indyIdentifiers'
 import { dateToTimestamp } from '../utils/timestamp'
 
 const V2_INDY_PRESENTATION_PROPOSAL = 'hlindy/proof-req@v2.0'
@@ -467,12 +461,9 @@ export class LegacyIndyProofFormatService implements ProofFormatService<LegacyIn
     const schemas: { [key: string]: AnonCredsSchema } = {}
 
     for (const schemaId of schemaIds) {
-      const schemaResult = await fetchSchema(agentContext, schemaId)
-      if (isUnqualifiedSchemaId(schemaResult.schemaId)) {
-        schemas[schemaId] = schemaResult.schema
-      } else {
-        schemas[getUnQualifiedDidIndyDid(schemaId)] = getUnqualifiedDidIndySchema(schemaResult.schema)
-      }
+      const unqualifiedSchemaId = getUnQualifiedDidIndyDid(schemaId)
+      const schemaResult = await fetchSchema(agentContext, unqualifiedSchemaId)
+      schemas[unqualifiedSchemaId] = schemaResult.schema
     }
 
     return schemas
@@ -491,13 +482,12 @@ export class LegacyIndyProofFormatService implements ProofFormatService<LegacyIn
     const credentialDefinitions: { [key: string]: AnonCredsCredentialDefinition } = {}
 
     for (const credentialDefinitionId of credentialDefinitionIds) {
-      const credentialDefinitionResult = await fetchCredentialDefinition(agentContext, credentialDefinitionId)
-      if (isUnqualifiedCredentialDefinitionId(credentialDefinitionResult.credentialDefinitionId)) {
-        credentialDefinitions[credentialDefinitionId] = credentialDefinitionResult.credentialDefinition
-      } else {
-        credentialDefinitions[getUnQualifiedDidIndyDid(credentialDefinitionId)] =
-          getUnqualifiedDidIndyCredentialDefinition(credentialDefinitionResult.credentialDefinition)
-      }
+      const unqualifiedCredentialDefinitionId = getUnQualifiedDidIndyDid(credentialDefinitionId)
+      const credentialDefinitionResult = await fetchCredentialDefinition(
+        agentContext,
+        unqualifiedCredentialDefinitionId
+      )
+      credentialDefinitions[unqualifiedCredentialDefinitionId] = credentialDefinitionResult.credentialDefinition
     }
 
     return credentialDefinitions
