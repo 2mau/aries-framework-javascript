@@ -1,4 +1,4 @@
-import type { ConnectionRecord, CredentialExchangeRecord, ProofExchangeRecord } from '@credo-ts/core'
+import { type ConnectionRecord, type CredentialExchangeRecord, type ProofExchangeRecord } from '@credo-ts/core'
 
 import { BaseAgent } from './BaseAgent'
 import { greenText, Output, redText } from './OutputClass'
@@ -13,7 +13,7 @@ export class Alice extends BaseAgent {
   }
 
   public static async build(): Promise<Alice> {
-    const alice = new Alice(9000, 'alice')
+    const alice = new Alice(9000, 'alice' + Math.random())
     await alice.initializeAgent()
     return alice
   }

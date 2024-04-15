@@ -1,5 +1,14 @@
 <h1 align="center"><b>DEMO</b></h1>
 
+This demo is modified to use the new DataIntegrityCredentialFormatService to issue credentials and request proof using DIF PEX.
+The example align closely with the [test-vectors](https://github.com/TimoGlastra/anoncreds-w3c-test-vectors/tree/main), although some simplifications were made.
+
+* No revocation is used
+* the id property of the credential is omitted.
+
+Faber can be used to test the issuance/verification side, and Alice can be used to test the holder functionality (see below).
+
+
 This is the Credo demo. Walk through the Credo flow yourself together with agents Alice and Faber.
 
 Alice, a former student of Faber College, connects with the College, is issued a credential about her degree and then is asked by the College for a proof.

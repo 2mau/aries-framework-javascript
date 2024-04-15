@@ -1,9 +1,16 @@
 import type { RegisterCredentialDefinitionReturnStateFinished } from '@credo-ts/anoncreds'
-import type { ConnectionRecord, ConnectionStateChangedEvent } from '@credo-ts/core'
+import type { ConnectionRecord, ConnectionStateChangedEvent, CredentialStateChangedEvent } from '@credo-ts/core'
 import type { IndyVdrRegisterSchemaOptions, IndyVdrRegisterCredentialDefinitionOptions } from '@credo-ts/indy-vdr'
 import type BottomBar from 'inquirer/lib/ui/bottom-bar'
 
-import { ConnectionEventTypes, KeyType, TypedArrayEncoder, utils } from '@credo-ts/core'
+import {
+  ConnectionEventTypes,
+  KeyType,
+  TypedArrayEncoder,
+  W3cCredential,
+  W3cCredentialSubject,
+  utils,
+} from '@credo-ts/core'
 import { ui } from 'inquirer'
 
 import { BaseAgent, indyNetworkConfig } from './BaseAgent'
@@ -11,13 +18,12 @@ import { Color, Output, greenText, purpleText, redText } from './OutputClass'
 
 export enum RegistryOptions {
   indy = 'did:indy',
-  cheqd = 'did:cheqd',
 }
 
 export class Faber extends BaseAgent {
   public outOfBandId?: string
-  public credentialDefinition?: RegisterCredentialDefinitionReturnStateFinished
-  public anonCredsIssuerId?: string
+  public credentialDefinition!: RegisterCredentialDefinitionReturnStateFinished
+  public anonCredsIssuerId!: string
   public ui: BottomBar
 
   public constructor(port: number, name: string) {
@@ -26,15 +32,12 @@ export class Faber extends BaseAgent {
   }
 
   public static async build(): Promise<Faber> {
-    const faber = new Faber(9001, 'faber')
+    const faber = new Faber(9001, 'faber' + Math.random())
     await faber.initializeAgent()
     return faber
   }
 
   public async importDid(registry: string) {
-    // NOTE: we assume the did is already registered on the ledger, we just store the private key in the wallet
-    // and store the existing did in the wallet
-    // indy did is based on private key (seed)
     const unqualifiedIndyDid = '2jEvRuKmfBJTRa7QowDpNN'
     const cheqdDid = 'did:cheqd:testnet:d37eba59-513d-42d3-8f9f-d1df0548b675'
     const indyDid = `did:indy:${indyNetworkConfig.indyNamespace}:${unqualifiedIndyDid}`
@@ -127,7 +130,9 @@ export class Faber extends BaseAgent {
     console.log(`\n\nThe credential definition will look like this:\n`)
     console.log(purpleText(`Name: ${Color.Reset}${name}`))
     console.log(purpleText(`Version: ${Color.Reset}${version}`))
-    console.log(purpleText(`Attributes: ${Color.Reset}${attributes[0]}, ${attributes[1]}, ${attributes[2]}\n`))
+    console.log(
+      purpleText(`Attributes: ${Color.Reset}${attributes[0]}, ${attributes[1]}, ${attributes[2]}, ${attributes[3]}\n`)
+    )
   }
 
   private async registerSchema() {
@@ -135,9 +140,9 @@ export class Faber extends BaseAgent {
       throw new Error(redText('Missing anoncreds issuerId'))
     }
     const schemaTemplate = {
-      name: 'Faber College' + utils.uuid(),
+      name: 'Identity Credential' + utils.uuid(),
       version: '1.0.0',
-      attrNames: ['name', 'degree', 'date'],
+      attrNames: ['name', 'age', 'sex', 'height'],
       issuerId: this.anonCredsIssuerId,
     }
     this.printSchema(schemaTemplate.name, schemaTemplate.version, schemaTemplate.attrNames)
@@ -195,6 +200,7 @@ export class Faber extends BaseAgent {
 
   public async issueCredential() {
     const schema = await this.registerSchema()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const credentialDefinition = await this.registerCredentialDefinition(schema.schemaId)
     const connectionRecord = await this.getConnectionRecord()
 
@@ -204,22 +210,22 @@ export class Faber extends BaseAgent {
       connectionId: connectionRecord.id,
       protocolVersion: 'v2',
       credentialFormats: {
-        anoncreds: {
-          attributes: [
-            {
-              name: 'name',
-              value: 'Alice Smith',
-            },
-            {
-              name: 'degree',
-              value: 'Computer Science',
-            },
-            {
-              name: 'date',
-              value: '01/01/2022',
-            },
-          ],
-          credentialDefinitionId: credentialDefinition.credentialDefinitionId,
+        dataIntegrity: {
+          bindingRequired: true,
+          anonCredsLinkSecretBinding: { credentialDefinitionId: this.credentialDefinition.credentialDefinitionId },
+          credential: new W3cCredential({
+            issuer: this.anonCredsIssuerId,
+            type: ['VerifiableCredential'],
+            issuanceDate: new Date().toISOString(),
+            credentialSubject: new W3cCredentialSubject({
+              claims: {
+                name: 'Alice',
+                age: 25,
+                height: 56,
+                sex: 'female',
+              },
+            }),
+          }),
         },
       },
     })
@@ -233,38 +239,73 @@ export class Faber extends BaseAgent {
     await new Promise((f) => setTimeout(f, 2000))
   }
 
-  private async newProofAttribute() {
-    await this.printProofFlow(greenText(`Creating new proof attribute for 'name' ...\n`))
-    const proofAttribute = {
-      name: {
-        name: 'name',
-        restrictions: [
-          {
-            cred_def_id: this.credentialDefinition?.credentialDefinitionId,
-          },
-        ],
-      },
-    }
-
-    return proofAttribute
-  }
-
   public async sendProofRequest() {
     const connectionRecord = await this.getConnectionRecord()
-    const proofAttribute = await this.newProofAttribute()
     await this.printProofFlow(greenText('\nRequesting proof...\n', false))
 
     await this.agent.proofs.requestProof({
       protocolVersion: 'v2',
       connectionId: connectionRecord.id,
       proofFormats: {
-        anoncreds: {
-          name: 'proof-request',
-          version: '1.0',
-          requested_attributes: proofAttribute,
+        presentationExchange: {
+          presentationDefinition: {
+            id: '5591656f-5b5d-40f8-ab5c-9041c8e3a6a0',
+            name: 'Age Verification',
+            purpose: 'We need to verify your age before entering a bar',
+            input_descriptors: [
+              {
+                id: 'age-verification',
+                name: 'A specific type of VC + Issuer',
+                purpose: 'We want a VC of this type generated by this issuer',
+                schema: [
+                  {
+                    uri: 'https://www.w3.org/2018/credentials/v1',
+                  },
+                ],
+                constraints: {
+                  //statuses: {
+                  //  active: {
+                  //    directive: 'required',
+                  //  },
+                  //},
+                  limit_disclosure: 'required',
+                  fields: [
+                    {
+                      path: ['$.issuer'],
+                      filter: {
+                        type: 'string',
+                        const: this.anonCredsIssuerId,
+                      },
+                    },
+                    {
+                      path: ['$.credentialSubject.name'],
+                    },
+                    {
+                      path: ['$.credentialSubject.height'],
+                    },
+                    {
+                      path: ['$.credentialSubject.age'],
+                      predicate: 'preferred',
+                      filter: {
+                        type: 'number',
+                        minimum: 18,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+            format: {
+              di_vc: {
+                proof_type: ['DataIntegrityProof'],
+                cryptosuite: ['anoncreds-2023', 'eddsa-rdfc-2022'],
+              },
+            },
+          },
         },
       },
     })
+
     this.ui.updateBottomBar(
       `\nProof request sent!\n\nGo to the Alice agent to accept the proof request\n\n${Color.Reset}`
     )

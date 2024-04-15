@@ -1,15 +1,7 @@
 import type { InitConfig } from '@credo-ts/core'
 import type { IndyVdrPoolConfig } from '@credo-ts/indy-vdr'
 
-import {
-  AnonCredsCredentialFormatService,
-  AnonCredsModule,
-  AnonCredsProofFormatService,
-  LegacyIndyCredentialFormatService,
-  LegacyIndyProofFormatService,
-  V1CredentialProtocol,
-  V1ProofProtocol,
-} from '@credo-ts/anoncreds'
+import { AnonCredsModule, DataIntegrityCredentialFormatService } from '@credo-ts/anoncreds'
 import { AskarModule } from '@credo-ts/askar'
 import {
   CheqdAnonCredsRegistry,
@@ -29,6 +21,7 @@ import {
   CredentialsModule,
   Agent,
   HttpOutboundTransport,
+  DifPresentationExchangeProofFormatService,
 } from '@credo-ts/core'
 import { IndyVdrIndyDidResolver, IndyVdrAnonCredsRegistry, IndyVdrModule } from '@credo-ts/indy-vdr'
 import { agentDependencies, HttpInboundTransport } from '@credo-ts/node'
@@ -90,9 +83,6 @@ export class BaseAgent {
 }
 
 function getAskarAnonCredsIndyModules() {
-  const legacyIndyCredentialFormatService = new LegacyIndyCredentialFormatService()
-  const legacyIndyProofFormatService = new LegacyIndyProofFormatService()
-
   return {
     connections: new ConnectionsModule({
       autoAcceptConnections: true,
@@ -100,24 +90,14 @@ function getAskarAnonCredsIndyModules() {
     credentials: new CredentialsModule({
       autoAcceptCredentials: AutoAcceptCredential.ContentApproved,
       credentialProtocols: [
-        new V1CredentialProtocol({
-          indyCredentialFormat: legacyIndyCredentialFormatService,
-        }),
         new V2CredentialProtocol({
-          credentialFormats: [legacyIndyCredentialFormatService, new AnonCredsCredentialFormatService()],
+          credentialFormats: [new DataIntegrityCredentialFormatService()],
         }),
       ],
     }),
     proofs: new ProofsModule({
       autoAcceptProofs: AutoAcceptProof.ContentApproved,
-      proofProtocols: [
-        new V1ProofProtocol({
-          indyProofFormat: legacyIndyProofFormatService,
-        }),
-        new V2ProofProtocol({
-          proofFormats: [legacyIndyProofFormatService, new AnonCredsProofFormatService()],
-        }),
-      ],
+      proofProtocols: [new V2ProofProtocol({ proofFormats: [new DifPresentationExchangeProofFormatService()] })],
     }),
     anoncreds: new AnonCredsModule({
       registries: [new IndyVdrAnonCredsRegistry(), new CheqdAnonCredsRegistry()],
